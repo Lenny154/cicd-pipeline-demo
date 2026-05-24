@@ -1,0 +1,39 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build Docker image (dry run)
+        run: docker build -t pr-check:${{ github.sha }} .
+
+      - name: Run container smoke test
+        run: |
+          docker run -d -p 3000:3000 --name pr-test pr-check:${{ github.sha }}
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+          curl -sf http://localhost:3000/ready || exit 1
+          docker stop pr-test
